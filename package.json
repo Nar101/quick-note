@@ -14,7 +14,12 @@
     "productName": "QuickNote",
     "mac": {
       "category": "public.app-category.productivity"
-    }
+    },
+    "files": [
+      "dist/**/*",
+      "src/main/**/*",
+      "package.json"
+    ]
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
