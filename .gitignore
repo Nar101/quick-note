@@ -5,3 +5,4 @@ dist/
 .playwright-mcp/
 .codepilot-uploads/
 *.local
+package-lock*.json
