@@ -214,12 +214,12 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: config.width || 420,
     height: config.height || 360,
-    frame: true,
+    frame: false,
     resizable: true,
     alwaysOnTop: true,
-    skipTaskbar: true,
+    skipTaskbar: false,
     center: true,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FAFAF8',
     title: 'QuickNote',
     show: false,
     webPreferences: {
@@ -288,6 +288,30 @@ function setupIPC() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.hide();
     }
+  });
+
+  // Window control handlers for custom traffic lights
+  ipcMain.on('window-minimize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+    }
+  });
+
+  ipcMain.on('window-maximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow.maximize();
+      }
+    }
+  });
+
+  ipcMain.handle('window-is-maximized', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return mainWindow.isMaximized();
+    }
+    return false;
   });
 }
 

@@ -2,16 +2,84 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import './style.css';
 
+// Sun icon for light mode
+const SunIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="5" />
+    <line x1="12" y1="1" x2="12" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="23" />
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+    <line x1="1" y1="12" x2="3" y2="12" />
+    <line x1="21" y1="12" x2="23" y2="12" />
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+  </svg>
+);
+
+// Moon icon for dark mode
+const MoonIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+);
+
 function App() {
   const [content, setContent] = useState('');
-  const [images, setImages] = useState([]); // [{id, dataUrl}]
+  const [images, setImages] = useState([]);
   const [imageCounter, setImageCounter] = useState(0);
   const [status, setStatus] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('quicknote-theme');
+    return saved || 'light';
+  });
+  const [isMaximized, setIsMaximized] = useState(false);
   const textareaRef = useRef(null);
+
+  // Check maximized state periodically
+  useEffect(() => {
+    const checkMaximized = async () => {
+      if (window.api?.isMaximized) {
+        const maximized = await window.api.isMaximized();
+        setIsMaximized(maximized);
+      }
+    };
+    checkMaximized();
+    const interval = setInterval(checkMaximized, 500);
+    return () => clearInterval(interval);
+  }, []);
 
   // Placeholder pattern for images
   const getPlaceholder = (id) => `[📎 图片${id}]`;
+
+  // Theme effect - apply to document and persist
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('quicknote-theme', theme);
+  }, [theme]);
+
+  // Toggle theme handler
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  // Window control handlers
+  const handleClose = () => {
+    window.api?.closeWindow();
+  };
+
+  const handleMinimize = () => {
+    window.api?.minimizeWindow();
+  };
+
+  const handleMaximize = async () => {
+    window.api?.maximizeWindow();
+    if (window.api?.isMaximized) {
+      const maximized = await window.api.isMaximized();
+      setIsMaximized(maximized);
+    }
+  };
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -148,6 +216,43 @@ function App() {
 
   return (
     <div className="app">
+      <div className="header">
+        {/* Traffic lights */}
+        <div className="traffic-lights">
+          <button
+            className="traffic-light traffic-close"
+            onClick={handleClose}
+            title="关闭"
+            aria-label="关闭"
+          />
+          <button
+            className="traffic-light traffic-minimize"
+            onClick={handleMinimize}
+            title="最小化"
+            aria-label="最小化"
+          />
+          <button
+            className={`traffic-light traffic-maximize ${isMaximized ? 'maximized' : ''}`}
+            onClick={handleMaximize}
+            title={isMaximized ? "还原" : "最大化"}
+            aria-label={isMaximized ? "还原" : "最大化"}
+          />
+        </div>
+
+        {/* Spacer for window drag */}
+        <div className="header-drag-region" />
+
+        {/* Theme toggle */}
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
+          aria-label="切换主题"
+        >
+          {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+        </button>
+      </div>
+
       <div className="content">
         <textarea
           ref={textareaRef}
