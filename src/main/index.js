@@ -13,6 +13,22 @@ let mcpBuffer = '';
 let mcpPending = {};
 let mcpCurrentId = 0;
 
+function getNpxPath() {
+  try {
+    return require('child_process').execSync('which npx').toString().trim();
+  } catch (e) {
+    return '/usr/local/bin/npx';
+  }
+}
+
+function getBunPath() {
+  try {
+    return require('child_process').execSync('which bun').toString().trim();
+  } catch (e) {
+    return '/Users/nar/.bun/bin/bun';
+  }
+}
+
 function getHeptabaseCliPath() {
   return path.join(__dirname, '../../node_modules/heptabase-cli/bin/heptabase.js');
 }
@@ -23,12 +39,16 @@ function warmupMcp() {
 
   console.log('[MCP] Starting pre-warmed connection...');
 
-  mcpProcess = spawn('npx', [
+  const npxPath = getNpxPath();
+  console.log('[MCP] Using npx from:', npxPath);
+
+  mcpProcess = spawn(npxPath, [
     '-y', 'mcp-remote@latest',
     'https://api.heptabase.com/mcp',
     '--transport', 'http-only'
   ], {
-    stdio: ['pipe', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, PATH: '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin' }
   });
 
   mcpProcess.stdout.on('data', (data) => {
@@ -135,11 +155,14 @@ function callMcpTool(toolName, args) {
   });
 }
 
-// Save to Heptabase using pre-warmed MCP connection
+// ═══════════════════════════════════════════════════════════════════════════════
+// [铁律] 禁止修改以下代码 —— 保存到 Heptabase Journal 的核心逻辑
+// 包括：MCP 连接、npx/bun 路径获取、fallback 调用方式
+// 原因：此段代码经过多次调试才稳定运行，任何未经授权的修改都可能导致保存失败
+// ═══════════════════════════════════════════════════════════════════════════════
 async function saveToHeptabaseJournal(content) {
   try {
     if (!mcpProcess || !mcpReady) {
-      console.log('[save-to-journal] MCP not ready, warming up...');
       warmupMcp();
       await new Promise(r => setTimeout(r, 2000));
     }
@@ -157,22 +180,26 @@ async function saveToHeptabaseJournal(content) {
 
     return { success: true, result: JSON.stringify(result) };
   } catch (error) {
-    console.log('[save-to-journal] error:', error.message);
     // Fallback to original method
     return await saveToHeptabaseJournalFallback(content);
   }
 }
 
+// [铁律] 禁止修改 —— 直接调用 bun + heptabase-cli 的 fallback 方法
 // Original method as fallback
 const { exec } = require('child_process');
 
 async function saveToHeptabaseJournalFallback(content) {
   return new Promise((resolve) => {
-    const heptabaseCliPath = getHeptabaseCliPath();
+    const bunPath = getBunPath();
+    const cliPath = path.join(__dirname, '../../node_modules/heptabase-cli/bin/heptabase.js');
     const escapedContent = content.replace(/"/g, '\\"');
-    const command = `npx -y heptabase-cli@latest append-to-journal --content "${escapedContent}"`;
+    const command = `"${bunPath}" "${cliPath}" append-to-journal --content "${escapedContent}"`;
 
-    exec(command, { timeout: 15000 }, (error, stdout, stderr) => {
+    exec(command, {
+      timeout: 15000,
+      env: { ...process.env, PATH: '/Users/nar/.bun/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin' }
+    }, (error, stdout, stderr) => {
       if (error) {
         resolve({ success: false, error: error.message });
       } else if (stdout.includes('Content appended')) {
