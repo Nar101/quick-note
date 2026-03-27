@@ -197,6 +197,61 @@ body {
   transform: rotate(180deg);
 }
 
+/* Capture toggle */
+.capture-toggle {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+  -webkit-app-region: no-drag;
+  margin-right: 8px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.capture-toggle:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.capture-toggle:active {
+  transform: scale(0.9);
+}
+
+.capture-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.capture-toggle.active {
+  color: var(--accent-success);
+}
+
+.capture-toggle.active::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-success);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 .content {
   flex: 1;
   display: flex;

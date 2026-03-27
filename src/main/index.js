@@ -1,10 +1,13 @@
-const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, clipboard } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
 let mainWindow = null;
 let isQuitting = false;
+let captureModeEnabled = false;
+let lastClipboardText = '';
+let lastClipboardHash = 0;
 
 // Single persistent MCP connection (reused for all saves)
 let mcpProcess = null;
@@ -257,6 +260,9 @@ function createWindow() {
     },
   });
 
+  // 让窗口在所有桌面上可见（跨 Spaces 常驻）
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
   console.log('[QuickNote] Loading URL:', isDev ? isDev : 'file');
   if (isDev) {
     mainWindow.loadURL(isDev);
@@ -358,11 +364,60 @@ function setupIPC() {
       event.sender.send('window-maximized-changed', mainWindow.isMaximized());
     }
   });
+
+  // Capture mode control
+  ipcMain.on('set-capture-mode', (event, enabled) => {
+    captureModeEnabled = enabled;
+    if (enabled) {
+      lastClipboardText = clipboard.readText();
+      lastClipboardHash = hashString(lastClipboardText);
+    }
+  });
+}
+
+// Simple hash function
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash;
+}
+
+// Monitor clipboard in main process (不受焦点限制)
+function startClipboardMonitor() {
+  setInterval(() => {
+    if (!captureModeEnabled || !mainWindow || mainWindow.isDestroyed()) return;
+
+    const currentText = clipboard.readText();
+    const currentHash = hashString(currentText);
+
+    if (currentText && currentHash !== lastClipboardHash) {
+      lastClipboardHash = currentHash;
+      lastClipboardText = currentText;
+      // Send to renderer
+      mainWindow.webContents.send('clipboard-captured', { type: 'text', content: currentText });
+    }
+
+    // Check for image
+    const currentImage = clipboard.readImage();
+    if (!currentImage.isEmpty()) {
+      const imageHash = hashString(currentImage.toDataURL().slice(0, 100));
+      if (imageHash !== lastClipboardHash) {
+        lastClipboardHash = imageHash;
+        const dataUrl = currentImage.toDataURL();
+        mainWindow.webContents.send('clipboard-captured', { type: 'image', content: dataUrl });
+      }
+    }
+  }, 300);
 }
 
 app.whenReady().then(() => {
   registerShortcuts();
   setupIPC();
+  startClipboardMonitor();
   // 预热 MCP 连接（启动时后台进行，用户保存时更快）
   warmupMcp();
   // 启动时自动显示窗口（仅开发调试用）

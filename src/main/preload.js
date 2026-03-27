@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+let clipboardListener = null;
+
 contextBridge.exposeInMainWorld('api', {
   saveToJournal: (content) => ipcRenderer.invoke('save-to-journal', content),
   closeWindow: () => ipcRenderer.send('close-window'),
@@ -12,5 +14,21 @@ contextBridge.exposeInMainWorld('api', {
   },
   onWindowShown: (callback) => {
     ipcRenderer.on('window-shown', () => callback());
+  },
+  setCaptureMode: (enabled) => ipcRenderer.send('set-capture-mode', enabled),
+  onClipboardCapture: (callback) => {
+    // Remove old listener if exists
+    if (clipboardListener) {
+      ipcRenderer.removeListener('clipboard-captured', clipboardListener);
+    }
+    // Add new listener
+    clipboardListener = (_, data) => callback(data);
+    ipcRenderer.on('clipboard-captured', clipboardListener);
+  },
+  removeClipboardListener: () => {
+    if (clipboardListener) {
+      ipcRenderer.removeListener('clipboard-captured', clipboardListener);
+      clipboardListener = null;
+    }
   },
 });
