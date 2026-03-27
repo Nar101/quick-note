@@ -24,6 +24,14 @@ const MoonIcon = () => (
   </svg>
 );
 
+// Copy/capture icon
+const CaptureIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
 function App() {
   const [content, setContent] = useState('');
   const [images, setImages] = useState([]);
@@ -35,7 +43,12 @@ function App() {
     return saved || 'light';
   });
   const [isMaximized, setIsMaximized] = useState(false);
+  const [captureMode, setCaptureMode] = useState(() => {
+    const saved = localStorage.getItem('quicknote-capture');
+    return saved !== 'false'; // 默认开启，用户手动关闭后会记住
+  });
   const textareaRef = useRef(null);
+  const contentRef = useRef('');
 
   // Check maximized state (event-driven)
   useEffect(() => {
@@ -55,9 +68,24 @@ function App() {
     localStorage.setItem('quicknote-theme', theme);
   }, [theme]);
 
+  // Sync content to ref for capture mode
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
   // Toggle theme handler
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  // Toggle capture mode handler
+  const toggleCaptureMode = () => {
+    setCaptureMode(prev => {
+      const newValue = !prev;
+      localStorage.setItem('quicknote-capture', String(newValue));
+      window.api?.setCaptureMode(newValue);
+      return newValue;
+    });
   };
 
   // Window control handlers
@@ -127,6 +155,40 @@ function App() {
     };
   }, [content, images]);
 
+  // Capture mode: listen to main process clipboard events
+  useEffect(() => {
+    if (!captureMode) return;
+
+    // Tell main process capture mode is on
+    window.api?.setCaptureMode(true);
+
+    // Listen for clipboard captures from main process
+    window.api?.onClipboardCapture((data) => {
+      if (data.type === 'text') {
+        setContent(prev => {
+          const separator = prev.length > 0 && !prev.endsWith('\n') ? '\n' : '';
+          return prev + separator + data.content;
+        });
+      } else if (data.type === 'image') {
+        // Handle image from main process - use functional update for counter
+        setImageCounter(prev => {
+          const id = prev + 1;
+          setImages(images => [...images, { id, dataUrl: data.content }]);
+          setContent(prevContent => {
+            const separator = prevContent.length > 0 && !prevContent.endsWith('\n') ? '\n' : '';
+            return prevContent + separator + getPlaceholder(id);
+          });
+          return id;
+        });
+      }
+    });
+
+    return () => {
+      window.api?.setCaptureMode(false);
+      window.api?.removeClipboardListener();
+    };
+  }, [captureMode]);
+
   // Sync images array when content changes (remove deleted image placeholders)
   useEffect(() => {
     const placeholderIds = images.map(img => img.id);
@@ -184,6 +246,20 @@ function App() {
     setContent(prev => prev.replace(placeholder, ''));
     // Remove from images array (useEffect will handle sync)
     setImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  // Append content to end of note (for capture mode)
+  const appendToEnd = (text) => {
+    const currentContent = contentRef.current;
+    const separator = currentContent.length > 0 && !currentContent.endsWith('\n') ? '\n' : '';
+    const finalContent = currentContent + separator + text;
+    contentRef.current = finalContent;
+    setContent(finalContent);
+
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(finalContent.length, finalContent.length);
+    }, 0);
   };
 
   const handleSave = async () => {
@@ -261,6 +337,16 @@ function App() {
           aria-label="切换主题"
         >
           {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+        </button>
+
+        {/* Capture mode toggle */}
+        <button
+          className={`capture-toggle ${captureMode ? 'active' : ''}`}
+          onClick={toggleCaptureMode}
+          title={captureMode ? '关闭复制摘录' : '开启复制摘录'}
+          aria-label="复制摘录"
+        >
+          <CaptureIcon />
         </button>
       </div>
 
