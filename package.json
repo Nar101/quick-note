@@ -1,7 +1,7 @@
 {
-  "name": "quick-note",
+  "name": "heptanote",
   "version": "1.0.0",
-  "description": "Quick note to Heptabase journal",
+  "description": "HeptaNote - Quick note to Heptabase journal",
   "main": "src/main/index.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
@@ -10,10 +10,11 @@
     "dist": "npm run build && electron-builder"
   },
   "build": {
-    "appId": "com.quicknote.app",
-    "productName": "QuickNote",
+    "appId": "com.heptanote.app",
+    "productName": "HeptaNote",
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns"
     },
     "files": [
       "dist/**/*",
@@ -26,6 +27,7 @@
     "concurrently": "^9.2.1",
     "electron": "^39.8.3",
     "electron-builder": "^24.13.3",
+    "jimp": "^1.6.0",
     "vite": "^6.4.1",
     "wait-on": "^8.0.5"
   },

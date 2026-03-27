@@ -1,9 +1,9 @@
-# QuickNote
+# HeptaNote
 
 > 一键保存笔记到 Heptabase 日记，全局快捷键呼出，Cmd+Enter 极速保存。
 
-[![GitHub stars](https://img.shields.io/github/stars/Nar101/quick-note)](https://github.com/Nar101/quick-note)
-[![License](https://img.shields.io/github/license/Nar101/quick-note)](https://github.com/Nar101/quick-note)
+[![GitHub stars](https://img.shields.io/github/stars/Nar101/heptanote)](https://github.com/Nar101/heptanote)
+[![License](https://img.shields.io/github/license/Nar101/heptanote)](https://github.com/Nar101/heptanote)
 
 ## 功能特性
 
@@ -22,11 +22,11 @@
 
 ### 方式一：下载打包好的 APP（推荐）
 
-前往 [Releases](https://github.com/Nar101/quick-note/releases) 下载对应平台的安装包：
+前往 [Releases](https://github.com/Nar101/heptanote/releases) 下载对应平台的安装包：
 
-- macOS: `QuickNote-x.x.x-arm64.dmg` (Apple Silicon) 或 `QuickNote-x.x.x.dmg` (Intel)
-- Windows: `QuickNote Setup x.x.x.exe`
-- Linux: `QuickNote-x.x.x.AppImage`
+- macOS: `HeptaNote-x.x.x-arm64.dmg` (Apple Silicon) 或 `HeptaNote-x.x.x.dmg` (Intel)
+- Windows: `HeptaNote Setup x.x.x.exe`
+- Linux: `HeptaNote-x.x.x.AppImage`
 
 下载后双击安装，首次运行可能需要右键→"打开"来绕过 macOS 安全提示。
 
@@ -34,8 +34,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/Nar101/quick-note.git
-cd quick-note
+git clone https://github.com/Nar101/heptanote.git
+cd heptanote
 
 # 安装依赖
 npm install
@@ -52,7 +52,7 @@ npm run dist
 ## 使用方法
 
 1. **启动 APP** 后它会在后台运行（菜单栏可见）
-2. 按 **Command + Shift + J**（macOS）或 **Ctrl + Shift + J**（Windows/Linux）呼出 QuickNote 窗口
+2. 按 **Command + Shift + J**（macOS）或 **Ctrl + Shift + J**（Windows/Linux）呼出 HeptaNote 窗口
 3. 输入你的笔记内容
 4. 按 **Command + Enter**（macOS）或 **Ctrl + Enter**（Windows/Linux）保存
 5. 窗口自动隐藏，内容已添加到今日日记
@@ -76,7 +76,7 @@ append_to_journal tool 写入今日日记
 ## 项目结构
 
 ```
-quick-note/
+heptanote/
 ├── src/
 │   ├── main/
 │   │   ├── index.js          # Electron 主进程
@@ -91,8 +91,7 @@ quick-note/
 │       └── style.css          # 样式
 ├── dist/                      # 打包输出目录
 ├── package.json
-├── vite.config.js
-└── electron-builder.yml       # electron-builder 配置
+└── vite.config.js
 ```
 
 ## 技术栈
@@ -132,9 +131,6 @@ globalShortcut.register('CommandOrControl+Shift+J', () => {
 
 **Q: macOS 提示"无法打开"怎么办？**
 > 右键点击 APP → 选择"打开" → 弹窗点"打开"。
-
-**Q: 不想每次都按快捷键，能固定窗口吗？**
-> 当前版本窗口默认 `alwaysOnTop`，如果需要其他行为可以改源码。
 
 ## 开发相关
 
