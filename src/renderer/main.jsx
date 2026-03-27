@@ -37,17 +37,13 @@ function App() {
   const [isMaximized, setIsMaximized] = useState(false);
   const textareaRef = useRef(null);
 
-  // Check maximized state periodically
+  // Check maximized state (event-driven)
   useEffect(() => {
-    const checkMaximized = async () => {
-      if (window.api?.isMaximized) {
-        const maximized = await window.api.isMaximized();
-        setIsMaximized(maximized);
-      }
-    };
-    checkMaximized();
-    const interval = setInterval(checkMaximized, 500);
-    return () => clearInterval(interval);
+    if (window.api?.onMaximizedChange) {
+      window.api.onMaximizedChange((isMaximized) => {
+        setIsMaximized(isMaximized);
+      });
+    }
   }, []);
 
   // Placeholder pattern for images
@@ -82,10 +78,25 @@ function App() {
   };
 
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    // 自动聚焦到输入框（延迟一下确保 DOM 渲染完成）
+    const timer = setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
+  // 窗口显示时也聚焦
+  useEffect(() => {
+    if (window.api?.onWindowShown) {
+      window.api.onWindowShown(() => {
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 100);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         handleSave();

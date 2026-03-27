@@ -247,7 +247,7 @@ function createWindow() {
     skipTaskbar: false,
     center: true,
     backgroundColor: '#FAFAF8',
-    title: 'QuickNote',
+    title: 'HeptaNote',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -298,6 +298,18 @@ function createWindow() {
       saveWindowConfig({ width, height });
     }
   });
+
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximized-changed', true);
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-maximized-changed', false);
+  });
+
+  mainWindow.on('show', () => {
+    mainWindow.webContents.send('window-shown');
+  });
 }
 
 function registerShortcuts() {
@@ -339,6 +351,12 @@ function setupIPC() {
       return mainWindow.isMaximized();
     }
     return false;
+  });
+
+  ipcMain.on('window-maximized-subscribe', (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      event.sender.send('window-maximized-changed', mainWindow.isMaximized());
+    }
   });
 }
 
