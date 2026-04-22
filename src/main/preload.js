@@ -17,11 +17,9 @@ contextBridge.exposeInMainWorld('api', {
   },
   setCaptureMode: (enabled) => ipcRenderer.send('set-capture-mode', enabled),
   onClipboardCapture: (callback) => {
-    // Remove old listener if exists
     if (clipboardListener) {
       ipcRenderer.removeListener('clipboard-captured', clipboardListener);
     }
-    // Add new listener
     clipboardListener = (_, data) => callback(data);
     ipcRenderer.on('clipboard-captured', clipboardListener);
   },

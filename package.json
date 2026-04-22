@@ -1,23 +1,27 @@
 {
-  "name": "heptanote",
+  "name": "quick-note",
   "version": "1.0.0",
-  "description": "HeptaNote - Quick note to Heptabase journal",
+  "description": "Quick note to Heptabase journal",
   "main": "src/main/index.js",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "vite build",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },
   "build": {
-    "appId": "com.heptanote.app",
-    "productName": "HeptaNote",
+    "appId": "com.quicknote.app",
+    "productName": "QuickNote",
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "format": "ULFO"
     },
     "files": [
-      "dist/**/*",
+      "dist/renderer/**/*",
       "src/main/**/*",
       "package.json"
     ]
@@ -27,14 +31,18 @@
     "concurrently": "^9.2.1",
     "electron": "^39.8.3",
     "electron-builder": "^24.13.3",
-    "jimp": "^1.6.0",
     "vite": "^6.4.1",
     "wait-on": "^8.0.5"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@tiptap/extension-placeholder": "^3.22.4",
+    "@tiptap/pm": "^3.22.4",
+    "@tiptap/react": "^3.22.4",
+    "@tiptap/starter-kit": "^3.22.4",
     "heptabase-cli": "^0.1.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "turndown": "^7.2.4"
   }
 }

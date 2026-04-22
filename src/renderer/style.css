@@ -257,6 +257,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .textarea {
@@ -288,10 +291,119 @@ body {
   border-color: var(--border-focus);
 }
 
+/* TipTap Editor Styles */
+.editor-wrapper {
+  flex: 1;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-soft);
+  overflow-y: auto;
+  min-height: 0;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-wrapper:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-medium);
+}
+
+.tiptap-editor {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  outline: none;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  font-family: inherit;
+}
+
+.tiptap-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.tiptap-editor ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 4px 0;
+}
+
+.tiptap-editor ul li {
+  position: relative;
+  padding-left: 22px;
+  margin: 3px 0;
+}
+
+.tiptap-editor ul li::before {
+  content: '•';
+  position: absolute;
+  left: 6px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.tiptap-editor ul li ul {
+  margin-left: 16px;
+}
+
+.tiptap-editor ol {
+  list-style: none;
+  padding-left: 0;
+  margin: 4px 0;
+  counter-reset: list-counter;
+}
+
+.tiptap-editor ol li {
+  position: relative;
+  padding-left: 22px;
+  margin: 3px 0;
+  counter-increment: list-counter;
+}
+
+.tiptap-editor ol li::before {
+  content: counter(list-counter) '.';
+  position: absolute;
+  left: 0;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 18px;
+  text-align: right;
+  padding-right: 4px;
+}
+
+.tiptap-editor ol li ol {
+  margin-left: 16px;
+}
+
+.tiptap-editor strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tiptap-editor p {
+  margin: 0 0 4px 0;
+}
+
+.tiptap-editor p:last-child {
+  margin-bottom: 0;
+}
+
 .footer {
   display: flex;
   gap: 6px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .image-btn {
@@ -379,6 +491,10 @@ body {
   color: var(--text-secondary);
   text-align: center;
   transition: color var(--transition-fast);
+}
+
+.hint.success {
+  color: var(--accent-success);
 }
 
 .image-preview {

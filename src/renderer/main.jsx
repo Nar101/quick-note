@@ -1,5 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import TurndownService from 'turndown';
 import './style.css';
 
 // Sun icon for light mode
@@ -33,11 +37,12 @@ const CaptureIcon = () => (
 );
 
 function App() {
-  const [content, setContent] = useState('');
   const [images, setImages] = useState([]);
   const [imageCounter, setImageCounter] = useState(0);
   const [status, setStatus] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
+  const [hasContent, setHasContent] = useState(false);
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('quicknote-theme');
     return saved || 'light';
@@ -45,139 +50,92 @@ function App() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [captureMode, setCaptureMode] = useState(() => {
     const saved = localStorage.getItem('quicknote-capture');
-    return saved !== 'false'; // 默认开启，用户手动关闭后会记住
+    return saved !== 'false';
   });
-  const textareaRef = useRef(null);
-  const contentRef = useRef('');
 
-  // Check maximized state (event-driven)
-  useEffect(() => {
-    if (window.api?.onMaximizedChange) {
-      window.api.onMaximizedChange((isMaximized) => {
-        setIsMaximized(isMaximized);
-      });
-    }
-  }, []);
-
-  // Placeholder pattern for images
   const getPlaceholder = (id) => `[📎 图片${id}]`;
 
-  // Theme effect - apply to document and persist
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+      }),
+      Placeholder.configure({
+        placeholder: '输入笔记内容，粘贴图片后按 Cmd+Enter 保存...',
+      }),
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        class: 'tiptap-editor',
+      },
+      handleKeyDown: (view, event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+          handleSave();
+          return true;
+        }
+        return false;
+      },
+    },
+    onUpdate: ({ editor }) => {
+      setHasContent(editor.getText().trim().length > 0);
+    },
+  });
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('quicknote-theme', theme);
   }, [theme]);
 
-  // Sync content to ref for capture mode
   useEffect(() => {
-    contentRef.current = content;
-  }, [content]);
-
-  // Toggle theme handler
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
-
-  // Toggle capture mode handler
-  const toggleCaptureMode = () => {
-    setCaptureMode(prev => {
-      const newValue = !prev;
-      localStorage.setItem('quicknote-capture', String(newValue));
-      window.api?.setCaptureMode(newValue);
-      return newValue;
-    });
-  };
-
-  // Window control handlers
-  const handleClose = () => {
-    window.api?.closeWindow();
-  };
-
-  const handleMinimize = () => {
-    window.api?.minimizeWindow();
-  };
-
-  const handleMaximize = async () => {
-    window.api?.maximizeWindow();
-    if (window.api?.isMaximized) {
-      const maximized = await window.api.isMaximized();
-      setIsMaximized(maximized);
-    }
-  };
-
-  useEffect(() => {
-    // 自动聚焦到输入框（延迟一下确保 DOM 渲染完成）
-    const timer = setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // 窗口显示时也聚焦
-  useEffect(() => {
-    if (window.api?.onWindowShown) {
-      window.api.onWindowShown(() => {
-        setTimeout(() => {
-          textareaRef.current?.focus();
-        }, 100);
+    if (window.api?.onMaximizedChange) {
+      window.api.onMaximizedChange((isMax) => {
+        setIsMaximized(isMax);
       });
     }
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        handleSave();
-      }
-    };
+    const timer = setTimeout(() => {
+      editor?.commands.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [editor]);
 
-    const handlePaste = async (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
+  useEffect(() => {
+    if (window.api?.onWindowShown) {
+      window.api.onWindowShown(() => {
+        setTimeout(() => {
+          editor?.commands.focus();
+        }, 100);
+      });
+    }
+  }, [editor]);
 
-      for (const item of items) {
-        if (item.type.startsWith('image/')) {
-          e.preventDefault();
-          const file = item.getAsFile();
-          if (file) {
-            await insertImageFromClipboard(file);
-          }
-          return;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('paste', handlePaste);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('paste', handlePaste);
-    };
-  }, [content, images]);
-
-  // Capture mode: listen to main process clipboard events
   useEffect(() => {
     if (!captureMode) return;
 
-    // Tell main process capture mode is on
     window.api?.setCaptureMode(true);
-
-    // Listen for clipboard captures from main process
     window.api?.onClipboardCapture((data) => {
+      if (!editor) return;
+
+      const { doc } = editor.state;
+      const endPos = doc.content.size;
+
       if (data.type === 'text') {
-        setContent(prev => {
-          const separator = prev.length > 0 && !prev.endsWith('\n') ? '\n' : '';
-          return prev + separator + data.content;
-        });
+        editor.chain().focus().setTextSelection(endPos).insertContent(data.content + '\n').run();
       } else if (data.type === 'image') {
-        // Handle image from main process - use functional update for counter
         setImageCounter(prev => {
           const id = prev + 1;
-          setImages(images => [...images, { id, dataUrl: data.content }]);
-          setContent(prevContent => {
-            const separator = prevContent.length > 0 && !prevContent.endsWith('\n') ? '\n' : '';
-            return prevContent + separator + getPlaceholder(id);
-          });
+          setImages(currentImages => [...currentImages, { id, dataUrl: data.content }]);
+          editor.chain().focus().setTextSelection(endPos).insertContent(getPlaceholder(id) + '\n').run();
           return id;
         });
       }
@@ -187,25 +145,30 @@ function App() {
       window.api?.setCaptureMode(false);
       window.api?.removeClipboardListener();
     };
-  }, [captureMode]);
+  }, [captureMode, editor]);
 
-  // Sync images array when content changes (remove deleted image placeholders)
-  useEffect(() => {
-    const placeholderIds = images.map(img => img.id);
-    const usedIds = new Set();
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
-    for (const img of images) {
-      if (content.includes(getPlaceholder(img.id))) {
-        usedIds.add(img.id);
-      }
+  const toggleCaptureMode = () => {
+    setCaptureMode(prev => {
+      const nextValue = !prev;
+      localStorage.setItem('quicknote-capture', String(nextValue));
+      window.api?.setCaptureMode(nextValue);
+      return nextValue;
+    });
+  };
+
+  const handleClose = () => window.api?.closeWindow();
+  const handleMinimize = () => window.api?.minimizeWindow();
+  const handleMaximize = async () => {
+    window.api?.maximizeWindow();
+    if (window.api?.isMaximized) {
+      const maximized = await window.api.isMaximized();
+      setIsMaximized(maximized);
     }
-
-    // Remove images whose placeholders were deleted
-    const newImages = images.filter(img => usedIds.has(img.id));
-    if (newImages.length !== images.length) {
-      setImages(newImages);
-    }
-  }, [content]);
+  };
 
   const insertImageFromClipboard = async (file) => {
     return new Promise((resolve) => {
@@ -214,26 +177,8 @@ function App() {
         const dataUrl = e.target.result;
         const id = imageCounter + 1;
         setImageCounter(id);
-
-        // Insert placeholder into textarea
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const placeholder = getPlaceholder(id);
-          const newContent = content.substring(0, start) + placeholder + content.substring(end);
-          setContent(newContent);
-
-          // Store image data
-          setImages(prev => [...prev, { id, dataUrl }]);
-
-          // Move cursor after placeholder
-          setTimeout(() => {
-            textarea.focus();
-            const newPos = start + placeholder.length;
-            textarea.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
+        setImages(prev => [...prev, { id, dataUrl }]);
+        editor?.commands.insertContent(getPlaceholder(id));
         resolve();
       };
       reader.readAsDataURL(file);
@@ -241,32 +186,66 @@ function App() {
   };
 
   const removeImage = (id) => {
-    // Remove placeholder from content
     const placeholder = getPlaceholder(id);
-    setContent(prev => prev.replace(placeholder, ''));
-    // Remove from images array (useEffect will handle sync)
+    if (editor) {
+      const { doc } = editor.state;
+      doc.descendants((node, pos) => {
+        if (node.isText && node.text.includes(placeholder)) {
+          editor.commands.deleteRange({ from: pos, to: pos + placeholder.length });
+          return false;
+        }
+        return true;
+      });
+    }
     setImages(prev => prev.filter(img => img.id !== id));
   };
 
-  // Append content to end of note (for capture mode)
-  const appendToEnd = (text) => {
-    const currentContent = contentRef.current;
-    const separator = currentContent.length > 0 && !currentContent.endsWith('\n') ? '\n' : '';
-    const finalContent = currentContent + separator + text;
-    contentRef.current = finalContent;
-    setContent(finalContent);
+  const getMarkdownContent = () => {
+    if (!editor) return '';
+    const html = editor.getHTML();
 
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(finalContent.length, finalContent.length);
-    }, 0);
+    const turndown = new TurndownService({
+      headingStyle: 'atx',
+      bulletListMarker: '-',
+      codeBlockStyle: 'fenced',
+    });
+
+    turndown.addRule('listItem', {
+      filter: 'li',
+      replacement: (content, node) => {
+        let indent = '';
+        let depth = 0;
+        const directParent = node.parentNode;
+        let parent = directParent;
+
+        while (parent && parent !== node.ownerDocument) {
+          if (parent.tagName === 'UL' || parent.tagName === 'OL') {
+            depth++;
+          }
+          parent = parent.parentNode;
+        }
+
+        if (depth > 1) {
+          indent = '  '.repeat(depth - 1);
+        }
+
+        if (directParent.tagName === 'OL') {
+          const index = Array.from(directParent.childNodes).indexOf(node) + 1;
+          return `${indent}${index}. ${content.trim()}\n`;
+        }
+
+        return `${indent}- ${content.trim()}\n`;
+      },
+    });
+
+    return turndown.turndown(html).replace(/\n{3,}/g, '\n\n');
   };
 
   const handleSave = async () => {
-    if (!content.trim() || status === '保存中...') return;
+    const markdownContent = getMarkdownContent();
+    if (!markdownContent.trim() || status === '保存中...') return;
 
-    // Replace placeholders with actual image markdown
-    let finalContent = content;
+    let finalContent = markdownContent;
     for (const img of images) {
       const placeholder = getPlaceholder(img.id);
       if (finalContent.includes(placeholder)) {
@@ -285,80 +264,69 @@ function App() {
       if (result.success) {
         setIsSuccess(true);
         setStatus('已保存 ✓');
-        setContent('');
+        setShowStatus(true);
+        editor?.commands.clearContent();
         setImages([]);
         setImageCounter(0);
+        setHasContent(false);
         setTimeout(() => {
+          setShowStatus(false);
           window.api.closeWindow();
         }, 800);
       } else {
         setStatus('保存失败: ' + result.error);
         setIsSuccess(false);
+        setShowStatus(true);
       }
     } catch (err) {
       setStatus('保存失败');
       setIsSuccess(false);
+      setShowStatus(true);
     }
   };
 
   return (
     <div className="app">
       <div className="header">
-        {/* Traffic lights */}
         <div className="traffic-lights">
-          <button
-            className="traffic-light traffic-close"
-            onClick={handleClose}
-            title="关闭"
-            aria-label="关闭"
-          />
-          <button
-            className="traffic-light traffic-minimize"
-            onClick={handleMinimize}
-            title="最小化"
-            aria-label="最小化"
-          />
-          <button
-            className={`traffic-light traffic-maximize ${isMaximized ? 'maximized' : ''}`}
-            onClick={handleMaximize}
-            title={isMaximized ? "还原" : "最大化"}
-            aria-label={isMaximized ? "还原" : "最大化"}
-          />
+          <button className="traffic-light traffic-close" onClick={handleClose} title="关闭" aria-label="关闭" />
+          <button className="traffic-light traffic-minimize" onClick={handleMinimize} title="最小化" aria-label="最小化" />
+          <button className={`traffic-light traffic-maximize ${isMaximized ? 'maximized' : ''}`} onClick={handleMaximize} title={isMaximized ? '还原' : '最大化'} aria-label={isMaximized ? '还原' : '最大化'} />
         </div>
 
-        {/* Spacer for window drag */}
         <div className="header-drag-region" />
 
-        {/* Theme toggle */}
-        <button
-          className="theme-toggle"
-          onClick={toggleTheme}
-          title={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
-          aria-label="切换主题"
-        >
+        <button className="theme-toggle" onClick={toggleTheme} title={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'} aria-label="切换主题">
           {theme === 'light' ? <MoonIcon /> : <SunIcon />}
         </button>
 
-        {/* Capture mode toggle */}
-        <button
-          className={`capture-toggle ${captureMode ? 'active' : ''}`}
-          onClick={toggleCaptureMode}
-          title={captureMode ? '关闭复制摘录' : '开启复制摘录'}
-          aria-label="复制摘录"
-        >
+        <button className={`capture-toggle ${captureMode ? 'active' : ''}`} onClick={toggleCaptureMode} title={captureMode ? '关闭复制摘录' : '开启复制摘录'} aria-label="复制摘录">
           <CaptureIcon />
         </button>
       </div>
 
       <div className="content">
-        <textarea
-          ref={textareaRef}
-          className="textarea"
-          placeholder="输入笔记内容，粘贴图片后按 Cmd+Enter 保存..."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          disabled={status === '保存中...'}
-        />
+        <div
+          className="editor-wrapper"
+          onClick={() => editor?.commands.focus()}
+          onPaste={(e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            for (const item of items) {
+              if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                  insertImageFromClipboard(file);
+                }
+                return;
+              }
+            }
+          }}
+        >
+          <EditorContent editor={editor} />
+        </div>
 
         {images.length > 0 && (
           <div className="image-preview">
@@ -367,13 +335,7 @@ function App() {
               {images.map((img) => (
                 <div key={img.id} className="preview-item">
                   <img src={img.dataUrl} alt="preview" />
-                  <button
-                    className="preview-remove"
-                    onClick={() => removeImage(img.id)}
-                    title="移除图片"
-                  >
-                    ×
-                  </button>
+                  <button className="preview-remove" onClick={() => removeImage(img.id)} title="移除图片">×</button>
                 </div>
               ))}
             </div>
@@ -385,13 +347,13 @@ function App() {
         <button
           className={`save-btn ${isSuccess ? 'success' : ''}`}
           onClick={handleSave}
-          disabled={!content.trim() || status === '保存中...'}
+          disabled={!hasContent || status === '保存中...'}
         >
           {status === '保存中...' ? '保存中...' : '保存到日记'}
         </button>
       </div>
 
-      {status && <div className="hint">{status}</div>}
+      {showStatus && <div className={`hint ${isSuccess ? 'success' : ''}`}>{status}</div>}
     </div>
   );
 }

@@ -2,11 +2,11 @@ const { app, BrowserWindow, globalShortcut, ipcMain, clipboard } = require('elec
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const { saveToHeptabaseJournalWithOfficialCli } = require('./heptabaseOfficialCli');
 
 let mainWindow = null;
 let isQuitting = false;
 let captureModeEnabled = false;
-let lastClipboardText = '';
 let lastClipboardHash = 0;
 
 // Single persistent MCP connection (reused for all saves)
@@ -214,6 +214,23 @@ async function saveToHeptabaseJournalFallback(content) {
   });
 }
 
+async function saveToJournal(content) {
+  const cliResult = await saveToHeptabaseJournalWithOfficialCli(content);
+  if (cliResult.success) {
+    return cliResult;
+  }
+
+  console.log('[Official CLI] Save failed, falling back to legacy path:', cliResult.error);
+  const legacyResult = await saveToHeptabaseJournal(content);
+  if (!legacyResult.success) {
+    return {
+      success: false,
+      error: `Official CLI: ${cliResult.error}; Legacy fallback: ${legacyResult.error}`,
+    };
+  }
+  return legacyResult;
+}
+
 const isDev = process.env.VITE_DEV_SERVER_URL;
 const configPath = path.join(app.getPath('userData'), 'window-config.json');
 
@@ -250,7 +267,7 @@ function createWindow() {
     skipTaskbar: false,
     center: true,
     backgroundColor: '#FAFAF8',
-    title: 'HeptaNote',
+    title: 'QuickNote',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -260,7 +277,7 @@ function createWindow() {
     },
   });
 
-  // 让窗口在所有桌面上可见（跨 Spaces 常驻）
+  // Keep the quick note window available across macOS Spaces and fullscreen apps.
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   console.log('[QuickNote] Loading URL:', isDev ? isDev : 'file');
@@ -326,7 +343,7 @@ function registerShortcuts() {
 
 function setupIPC() {
   ipcMain.handle('save-to-journal', async (event, content) => {
-    return await saveToHeptabaseJournal(content);
+    return await saveToJournal(content);
   });
 
   ipcMain.on('close-window', () => {
@@ -365,17 +382,14 @@ function setupIPC() {
     }
   });
 
-  // Capture mode control
   ipcMain.on('set-capture-mode', (event, enabled) => {
-    captureModeEnabled = enabled;
-    if (enabled) {
-      lastClipboardText = clipboard.readText();
-      lastClipboardHash = hashString(lastClipboardText);
+    captureModeEnabled = Boolean(enabled);
+    if (captureModeEnabled) {
+      lastClipboardHash = getCurrentClipboardHash();
     }
   });
 }
 
-// Simple hash function
 function hashString(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -386,28 +400,32 @@ function hashString(str) {
   return hash;
 }
 
-// Monitor clipboard in main process (不受焦点限制)
+function getCurrentClipboardHash() {
+  const image = clipboard.readImage();
+  if (!image.isEmpty()) {
+    return hashString(image.toDataURL().slice(0, 100));
+  }
+  return hashString(clipboard.readText() || '');
+}
+
 function startClipboardMonitor() {
   setInterval(() => {
     if (!captureModeEnabled || !mainWindow || mainWindow.isDestroyed()) return;
 
     const currentText = clipboard.readText();
-    const currentHash = hashString(currentText);
-
-    if (currentText && currentHash !== lastClipboardHash) {
-      lastClipboardHash = currentHash;
-      lastClipboardText = currentText;
-      // Send to renderer
+    const currentTextHash = hashString(currentText || '');
+    if (currentText && currentTextHash !== lastClipboardHash) {
+      lastClipboardHash = currentTextHash;
       mainWindow.webContents.send('clipboard-captured', { type: 'text', content: currentText });
+      return;
     }
 
-    // Check for image
     const currentImage = clipboard.readImage();
     if (!currentImage.isEmpty()) {
-      const imageHash = hashString(currentImage.toDataURL().slice(0, 100));
+      const dataUrl = currentImage.toDataURL();
+      const imageHash = hashString(dataUrl.slice(0, 100));
       if (imageHash !== lastClipboardHash) {
         lastClipboardHash = imageHash;
-        const dataUrl = currentImage.toDataURL();
         mainWindow.webContents.send('clipboard-captured', { type: 'image', content: dataUrl });
       }
     }
@@ -418,8 +436,6 @@ app.whenReady().then(() => {
   registerShortcuts();
   setupIPC();
   startClipboardMonitor();
-  // 预热 MCP 连接（启动时后台进行，用户保存时更快）
-  warmupMcp();
   // 启动时自动显示窗口（仅开发调试用）
   createWindow();
 });
